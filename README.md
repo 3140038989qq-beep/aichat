@@ -76,6 +76,3 @@ nohup python3 app.py > run.log 2>&1 &
 }
 ```
 
-## 📄 许可证
-
-本项目基于 [MIT 许可证](LICENSE)，原始项目由 [zhayujie](https://github.com/zhayujie) 开发。
