@@ -1,8 +1,8 @@
-<p align="center"><img src= "https://github.com/user-attachments/assets/eca9a9ec-8534-4615-9e0f-96c5ac1d10a3" alt="CowAgent" width="550" /></p>
+<p align="center"><img src= "https://github.com/user-attachments/assets/eca9a9ec-8534-4615-9e0f-96c5ac1d10a3" alt="Long" width="550" /></p>
 
 <p align="center">
   <strong>维什戴尔 · 企业微信 AI 机器人</strong><br/>
-  基于 <a href="https://github.com/zhayujie/chatgpt-on-wechat">chatgpt-on-wechat</a> / <a href="https://github.com/zhayujie/CowAgent">CowAgent</a> 改造
+  🐉 long 的个人定制版
 </p>
 
 ---
