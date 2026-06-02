@@ -41,6 +41,9 @@ ref/
 local/
 node_modules/
 
+# 个人记忆/笔记（含 API 密钥等敏感信息）
+memory/
+
 # cow cli
 dist/
 build/
