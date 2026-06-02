@@ -107,14 +107,15 @@ def ensure_workspace(workspace_dir: str, create_templates: bool = True) -> Works
     )
 
 
-def load_context_files(workspace_dir: str, files_to_load: Optional[List[str]] = None) -> List[ContextFile]:
+def load_context_files(workspace_dir: str, files_to_load: Optional[List[str]] = None, user_id: Optional[str] = None) -> List[ContextFile]:
     """
     加载工作空间的上下文文件
-    
+
     Args:
         workspace_dir: 工作空间目录
         files_to_load: 要加载的文件列表（相对路径），如果为None则加载所有标准文件
-        
+        user_id: 用户ID，如果提供则额外加载 per-user MEMORY.md
+
     Returns:
         ContextFile对象列表
     """
@@ -168,7 +169,24 @@ def load_context_files(workspace_dir: str, files_to_load: Optional[List[str]] = 
             
         except Exception as e:
             logger.warning(f"[Workspace] Failed to load {filename}: {e}")
-    
+
+    # Per-user MEMORY.md: user-specific long-term memory supplement
+    if user_id:
+        user_memory_path = os.path.join(workspace_dir, "memory", "users", user_id, "MEMORY.md")
+        try:
+            if os.path.exists(user_memory_path):
+                with open(user_memory_path, 'r', encoding='utf-8') as f:
+                    user_content = f.read().strip()
+                if user_content:
+                    user_content = _truncate_memory_content(user_content)
+                    context_files.append(ContextFile(
+                        path=f"memory/users/{user_id}/MEMORY.md",
+                        content=user_content
+                    ))
+                    logger.debug(f"[Workspace] Loaded per-user MEMORY.md for {user_id}")
+        except Exception as e:
+            logger.warning(f"[Workspace] Failed to load per-user MEMORY.md for {user_id}: {e}")
+
     return context_files
 
 

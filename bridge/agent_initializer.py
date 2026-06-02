@@ -71,8 +71,8 @@ class AgentInitializer:
         # Initialize scheduler if needed
         self._initialize_scheduler(tools, session_id)
         
-        # Load context files
-        context_files = load_context_files(workspace_root)
+        # Load context files (global + per-user)
+        context_files = load_context_files(workspace_root, user_id=session_id)
         
         # Initialize skill manager
         skill_manager = self._initialize_skill_manager(workspace_root, session_id)
@@ -592,7 +592,7 @@ class AgentInitializer:
         t.start()
 
     def _flush_all_agents(self):
-        """Flush memory for all active agent sessions, then run Deep Dream."""
+        """Flush memory for all active agent sessions, then run per-user Deep Dream."""
         agents = []
         if self.agent_bridge.default_agent:
             agents.append(("default", self.agent_bridge.default_agent))
@@ -602,26 +602,33 @@ class AgentInitializer:
         if not agents:
             return
 
-        # Phase 1: flush daily summaries
+        # Phase 1: flush daily summaries (per-user)
         flushed = 0
         flush_threads = []
-        dream_candidate = None
+        # Collect unique flush managers for Deep Dream per-user
+        seen_users = set()
+        dream_candidates = []  # (user_id, flush_manager)
         for label, agent in agents:
             try:
                 if not agent.memory_manager:
                     continue
+                user_id = getattr(agent, '_current_user_id', None)
                 with agent.messages_lock:
                     messages = list(agent.messages)
                 if not messages:
                     continue
-                result = agent.memory_manager.flush_manager.create_daily_summary(messages)
+                result = agent.memory_manager.flush_manager.create_daily_summary(
+                    messages, user_id=user_id
+                )
                 if result:
                     flushed += 1
                     t = agent.memory_manager.flush_manager._last_flush_thread
                     if t:
                         flush_threads.append(t)
-                if dream_candidate is None:
-                    dream_candidate = agent.memory_manager.flush_manager
+                uid_key = user_id or "__global__"
+                if uid_key not in seen_users:
+                    seen_users.add(uid_key)
+                    dream_candidates.append((user_id, agent.memory_manager.flush_manager))
             except Exception as e:
                 logger.warning(f"[DailyFlush] Failed for session {label}: {e}")
 
@@ -632,11 +639,12 @@ class AgentInitializer:
         for t in flush_threads:
             t.join(timeout=60)
 
-        # Phase 2: Deep Dream — distill daily memories → MEMORY.md + dream diary
-        if dream_candidate:
+        # Phase 2: Deep Dream — distill daily memories → per-user MEMORY.md + dream diary
+        for user_id, flush_mgr in dream_candidates:
             try:
-                result = dream_candidate.deep_dream()
+                result = flush_mgr.deep_dream(user_id=user_id)
                 if result:
-                    logger.info("[DeepDream] Memory distillation completed successfully")
+                    uid_label = user_id or "global"
+                    logger.info(f"[DeepDream] Memory distillation completed for user={uid_label}")
             except Exception as e:
-                logger.warning(f"[DeepDream] Failed: {e}")
+                logger.warning(f"[DeepDream] Failed for user={user_id}: {e}")

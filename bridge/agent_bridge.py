@@ -431,6 +431,8 @@ class AgentBridge:
 
             # Store session_id on agent so executor can clear DB on fatal errors
             agent._current_session_id = session_id
+            # Store user_id on agent so memory flush/dream writes to per-user files
+            agent._current_user_id = session_id
 
             # Bound the in-memory context for scheduler sessions before each run.
             # Scheduler sessions are stable per-task and append every trigger,
