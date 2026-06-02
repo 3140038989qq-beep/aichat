@@ -11,19 +11,20 @@
 
 这是一个预配置好的 **维什戴尔/W（明日方舟）角色扮演 AI 机器人**，通过企业微信自建应用接入。
 
-**已配置内容：**
+**本仓库包含：**
 - ✅ 维什戴尔完整人设（嘴硬心软、短文本轰炸）
-- ✅ DeepSeek 模型接入（API 已内置）
-- ✅ 企业微信应用通道配置
-- ✅ 免配置，改完 `config.json` 即可运行
+- ✅ DeepSeek 模型配置模板（需自己填入 API Key）
+- ✅ 企业微信应用通道配置模板
+- ✅ `config.json` 已配置好除密钥外的所有参数
 
-## ⚠️ 重要提示
+## ⚠️ 使用前必读
 
-> **本项目内置了 API Key 等敏感配置，请勿直接外传 `config.json` 或 fork 后未修改就公开！**
+> **本仓库不含任何 API Key**，`config.json` 已被 `.gitignore` 忽略，不会上传到 GitHub。
 >
-> 如果你 fork 了这个项目，请务必：
-> 1. 删除或替换 `config.json` 中的 API Key
-> 2. 在 DeepSeek 平台申请自己的 Key：[platform.deepseek.com](https://platform.deepseek.com/api_keys)
+> 要运行这个机器人，你需要：
+> 1. 在 [DeepSeek 平台](https://platform.deepseek.com/api_keys) 申请自己的 API Key
+> 2. 在企业微信后台创建自建应用，获取凭证
+> 3. 编辑本地的 `config.json` 填入上述信息
 
 ## 🚀 快速启动
 
