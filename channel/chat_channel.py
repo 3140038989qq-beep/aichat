@@ -1,5 +1,6 @@
 import os
 import re
+import base64
 import threading
 import time
 from asyncio import CancelledError
@@ -10,6 +11,7 @@ from bridge.reply import *
 from channel.channel import Channel
 from common.dequeue import Dequeue
 from common import memory
+from common import const
 from plugins import *
 
 try:
@@ -231,11 +233,18 @@ class ChatChannel(Channel):
                         reply = self._generate_reply(new_context)
                     else:
                         return
-            elif context.type == ContextType.IMAGE:  # 图片消息，当前仅做下载保存到本地的逻辑
+            elif context.type == ContextType.IMAGE:  # 图片/表情包，下载后调用视觉识别
                 memory.USER_IMAGE_CACHE[context["session_id"]] = {
                     "path": context.content,
                     "msg": context.get("msg")
                 }
+                # 尝试图片识别
+                cmsg = context["msg"]
+                try:
+                    cmsg.prepare()
+                except Exception as e:
+                    logger.warning(f"[chat_channel] Failed to download image: {e}")
+                reply = self._handle_image(context)
             elif context.type == ContextType.SHARING:  # 分享信息，当前无默认逻辑
                 pass
             elif context.type == ContextType.FUNCTION or context.type == ContextType.FILE:  # 文件消息及函数调用等，当前无默认逻辑
@@ -244,6 +253,69 @@ class ChatChannel(Channel):
                 logger.warning("[chat_channel] unknown context type: {}".format(context.type))
                 return
         return reply
+
+    def _handle_image(self, context: Context) -> Reply:
+        """图片/表情包 → 压缩 → 豆包视觉识别 → 角色回复"""
+        image_path = context.content
+
+        # 1. 图片压缩 + base64（大图缩小到 512px 以内，大幅减少 API 传输时间）
+        try:
+            from PIL import Image
+            with Image.open(image_path) as img:
+                # 转 RGB（处理 RGBA / 灰度 / GIF）
+                if img.mode in ("RGBA", "P", "LA"):
+                    img = img.convert("RGBA")
+                    bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
+                    img = Image.alpha_composite(bg, img).convert("RGB")
+                elif img.mode != "RGB":
+                    img = img.convert("RGB")
+                # 长边超过 512 就等比缩小
+                w, h = img.size
+                if max(w, h) > 512:
+                    ratio = 512.0 / max(w, h)
+                    img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+                # JPEG 压缩输出
+                import io
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=75, optimize=True)
+                img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                img_url = f"data:image/jpeg;base64,{img_b64}"
+        except Exception as e:
+            logger.error(f"[chat_channel] Image compress error {image_path}: {e}")
+            # fallback: raw file
+            try:
+                with open(image_path, "rb") as f:
+                    img_b64 = base64.b64encode(f.read()).decode("ascii")
+                img_url = f"data:image/png;base64,{img_b64}"
+            except Exception as e2:
+                logger.error(f"[chat_channel] Failed to read image: {e2}")
+                return Reply(ReplyType.TEXT, "啧 什么图 根本打不开")
+
+        # 2. 豆包视觉识别 — 用 lite 模型更快，prompt 精简
+        vision_result = None
+        try:
+            from models.bot_factory import create_bot
+            doubao_bot = create_bot(const.DOUBAO)
+            vision_prompt = "描述这张图的内容，并推测发送者想表达什么（分享日常/炫耀/撒娇/吐槽/搞笑/累/饿/想你了/分享风景/自拍等）。输出格式:【画面:xxx】【意图:xxx】 限60字"
+            # 使用 lite 模型，视觉理解够用且响应快得多
+            result = doubao_bot.call_vision(img_url, vision_prompt, model="doubao-seed-2-0-lite-260215")
+            if result.get("error"):
+                logger.error(f"[chat_channel] Vision API error: {result.get('message')}")
+            else:
+                vision_result = result.get("content", "").strip()
+        except Exception as e:
+            logger.error(f"[chat_channel] Vision call exception: {e}")
+
+        # 3. 把识别结果喂给对话Bot
+        if vision_result:
+            text_input = f"博士给你发了一张图: {vision_result}。回应他，别描述图片本身"
+        else:
+            text_input = "博士给你发了一张图"
+
+        new_context = self._compose_context(ContextType.TEXT, text_input, **context.kwargs)
+        if new_context:
+            return self._generate_reply(new_context)
+        return Reply(ReplyType.TEXT, "…嗯 看到了")
 
     def _decorate_reply(self, context: Context, reply: Reply) -> Reply:
         if reply and reply.type:

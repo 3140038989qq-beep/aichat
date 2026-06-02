@@ -44,6 +44,22 @@ class WechatComAppMessage(ChatMessage):
                     logger.info(f"[wechatcom] Failed to download image file, {response.content}")
 
             self._prepare_fn = download_image
+        elif msg.type == "emotion":
+            # 企业微信表情包，当作图片处理
+            self.ctype = ContextType.IMAGE
+            self.content = TmpDir().path() + msg.id + ".png"
+            # wechatpy 不支持 emotion 类型，MediaId 需要从原始 XML 中获取
+            media_id = msg._data.get("MediaId", msg.id) if hasattr(msg, "_data") else msg.id
+
+            def download_emotion():
+                response = client.media.download(media_id)
+                if response.status_code == 200:
+                    with open(self.content, "wb") as f:
+                        f.write(response.content)
+                else:
+                    logger.info(f"[wechatcom] Failed to download emotion file, {response.content}")
+
+            self._prepare_fn = download_emotion
         else:
             raise NotImplementedError("Unsupported message type: Type:{} ".format(msg.type))
 

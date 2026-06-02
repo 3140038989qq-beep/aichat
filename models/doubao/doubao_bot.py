@@ -18,8 +18,13 @@ from .doubao_session import DoubaoSession
 class DoubaoBot(Bot):
     def __init__(self):
         super().__init__()
-        self.sessions = SessionManager(DoubaoSession, model=conf().get("model") or "doubao-seed-2-0-pro-260215")
-        model = conf().get("model") or "doubao-seed-2-0-pro-260215"
+        # Use configured model only if it looks like a doubao model; otherwise default
+        cfg_model = conf().get("model") or ""
+        if cfg_model.startswith("doubao"):
+            model = cfg_model
+        else:
+            model = "doubao-seed-2-0-pro-260215"
+        self.sessions = SessionManager(DoubaoSession, model=model)
         self.args = {
             "model": model,
             "temperature": conf().get("temperature", 0.8),
